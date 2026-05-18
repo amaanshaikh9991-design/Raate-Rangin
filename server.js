@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const mysql = require("mysql2");
 const bcrypt = require("bcryptjs");
@@ -10,27 +12,36 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
 app.use(session({
-    secret: "secret",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true
 }));
 
 // MYSQL CONNECTION
 const db = mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "",
-    database: "musicplayer"
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME
 });
 
 db.connect((err) => {
+
     if(err){
         console.log(err);
     } else {
         console.log("MySQL Connected");
     }
+
 });
 
+db.query(`
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL
+)
+`);
 // HOME ROUTE
 app.get("/", (req,res)=>{
     res.redirect("/login.html");
@@ -57,12 +68,15 @@ app.post("/signup", async (req,res)=>{
                 }
 
                 return res.redirect("/login.html");
+
             }
         );
 
     }catch(error){
+
         console.log(error);
         return res.send("Signup Error");
+
     }
 
 });
@@ -79,8 +93,10 @@ app.post("/login",(req,res)=>{
         async (err,result)=>{
 
             if(err){
+
                 console.log(err);
                 return res.send("Database Error");
+
             }
 
             if(result.length > 0){
