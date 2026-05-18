@@ -1,4 +1,4 @@
-#  Features
+#  Features:
 
 ##  User Authentication
 - Secure signup and login system
