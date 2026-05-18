@@ -23,13 +23,16 @@ const db = mysql.createConnection({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: process.env.DB_PORT
+    port: process.env.DB_PORT,
+    ssl: {
+        rejectUnauthorized: false
+    }
 });
 
 db.connect((err) => {
 
     if(err){
-        console.log("Database Connection Error:");
+        console.log("DATABASE CONNECTION ERROR:");
         console.log(err);
     } else {
         console.log("MySQL Connected");
@@ -37,13 +40,24 @@ db.connect((err) => {
 
 });
 
+// CREATE USERS TABLE
 db.query(`
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL
 )
-`);
+`, (err) => {
+
+    if(err){
+        console.log("TABLE CREATION ERROR:");
+        console.log(err);
+    } else {
+        console.log("Users table ready");
+    }
+
+});
+
 // HOME ROUTE
 app.get("/", (req,res)=>{
     res.redirect("/login.html");
@@ -65,8 +79,11 @@ app.post("/signup", async (req,res)=>{
             (err,result)=>{
 
                 if(err){
+
+                    console.log("SIGNUP DATABASE ERROR:");
                     console.log(err);
-                    return res.send("User already exists");
+
+                    return res.send("User already exists or DB error");
                 }
 
                 return res.redirect("/login.html");
@@ -76,7 +93,9 @@ app.post("/signup", async (req,res)=>{
 
     }catch(error){
 
+        console.log("SIGNUP ERROR:");
         console.log(error);
+
         return res.send("Signup Error");
 
     }
@@ -96,7 +115,9 @@ app.post("/login",(req,res)=>{
 
             if(err){
 
+                console.log("LOGIN DATABASE ERROR:");
                 console.log(err);
+
                 return res.send("Database Error");
 
             }
