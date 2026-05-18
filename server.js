@@ -18,7 +18,9 @@ app.use(session({
 }));
 
 // MYSQL CONNECTION
-const db = mysql.createConnection(process.env.DATABASE_URL);
+const db = mysql.createConnection({
+    uri: process.env.DATABASE_URL
+});
 
 db.connect((err) => {
 
