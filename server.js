@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const express = require("express");
-const mysql = require("mysql2");
+const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 const session = require("express-session");
 const bodyParser = require("body-parser");
@@ -17,38 +17,37 @@ app.use(session({
     saveUninitialized: true
 }));
 
-// MYSQL CONNECTION
-const db = mysql.createConnection({
-    uri: process.env.DATABASE_URL
+// POSTGRESQL CONNECTION
+const db = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    }
 });
 
-db.connect((err) => {
-
-    if(err){
-        console.log("DATABASE CONNECTION ERROR:");
-        console.log(err);
-    } else {
-        console.log("MySQL Connected");
-    }
-
+db.connect()
+.then(() => {
+    console.log("Supabase PostgreSQL Connected");
+})
+.catch((err) => {
+    console.log("DATABASE CONNECTION ERROR:");
+    console.log(err);
 });
 
 // CREATE USERS TABLE
 db.query(`
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL
 )
-`, (err) => {
-
-    if(err){
-        console.log("TABLE CREATION ERROR:");
-        console.log(err);
-    } else {
-        console.log("Users table ready");
-    }
-
+`)
+.then(() => {
+    console.log("Users table ready");
+})
+.catch((err) => {
+    console.log("TABLE CREATION ERROR:");
+    console.log(err);
 });
 
 // HOME ROUTE
@@ -67,22 +66,20 @@ app.post("/signup", async (req,res)=>{
         const hashedPassword = await bcrypt.hash(password,10);
 
         db.query(
-            "INSERT INTO users (email,password) VALUES (?,?)",
-            [email,hashedPassword],
-            (err,result)=>{
+            "INSERT INTO users (email,password) VALUES ($1,$2)",
+            [email,hashedPassword]
+        )
+        .then(() => {
+            return res.redirect("/login.html");
+        })
+        .catch((err) => {
 
-                if(err){
+            console.log("SIGNUP DATABASE ERROR:");
+            console.log(err);
 
-                    console.log("SIGNUP DATABASE ERROR:");
-                    console.log(err);
+            return res.send("User already exists or DB error");
 
-                    return res.send("User already exists or DB error");
-                }
-
-                return res.redirect("/login.html");
-
-            }
-        );
+        });
 
     }catch(error){
 
@@ -96,54 +93,53 @@ app.post("/signup", async (req,res)=>{
 });
 
 // LOGIN
-app.post("/login",(req,res)=>{
+app.post("/login", async (req,res)=>{
 
-    const email = req.body.email.trim();
-    const password = req.body.password.trim();
+    try{
 
-    db.query(
-        "SELECT * FROM users WHERE email=?",
-        [email],
-        async (err,result)=>{
+        const email = req.body.email.trim();
+        const password = req.body.password.trim();
 
-            if(err){
+        const result = await db.query(
+            "SELECT * FROM users WHERE email=$1",
+            [email]
+        );
 
-                console.log("LOGIN DATABASE ERROR:");
-                console.log(err);
+        if(result.rows.length > 0){
 
-                return res.send("Database Error");
+            const user = result.rows[0];
 
-            }
+            const match = await bcrypt.compare(
+                password,
+                user.password
+            );
 
-            if(result.length > 0){
+            if(match){
 
-                const user = result[0];
+                req.session.user = user;
 
-                const match = await bcrypt.compare(
-                    password,
-                    user.password
-                );
-
-                if(match){
-
-                    req.session.user = user;
-
-                    return res.redirect("/index.html");
-
-                }else{
-
-                    return res.send("Wrong Password");
-
-                }
+                return res.redirect("/index.html");
 
             }else{
 
-                return res.send("User not found");
+                return res.send("Wrong Password");
 
             }
 
+        }else{
+
+            return res.send("User not found");
+
         }
-    );
+
+    }catch(err){
+
+        console.log("LOGIN DATABASE ERROR:");
+        console.log(err);
+
+        return res.send("Database Error");
+
+    }
 
 });
 
